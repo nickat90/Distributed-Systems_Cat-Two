@@ -16,7 +16,7 @@ class Transaction {
 class DeadlockDetector {
     // Maps Transaction ID -> Transaction it is waiting for
     private final Map<String, String> waitForGraph = new ConcurrentHashMap<>();
-    private final long timeoutMillis = 2000; 
+    private final long timeoutMillis = 2000;
 
     public void requestResource(Transaction requester, String holderId) {
         if (holderId == null) return;
@@ -24,7 +24,7 @@ class DeadlockDetector {
         System.out.println("[Detector] " + requester.id + " is waiting for " + holderId);
         waitForGraph.put(requester.id, holderId);
 
-        // Initiate Probe (Edge Chasing)
+        // Initiate Edge-Chasing (Probe)
         if (detectCycle(requester.id, holderId, new HashSet<>())) {
             resolveDeadlock(requester, holderId);
         }
@@ -39,34 +39,37 @@ class DeadlockDetector {
 
     private void resolveDeadlock(Transaction requester, String holderId) {
         System.out.println("!!! DEADLOCK DETECTED involving " + requester.id + " !!!");
-        
-        // Resolution Strategy: Wait-Die (Preserves Consistency)
-        // If requester is "older" (higher priority/lower timestamp), it waits.
-        // If requester is "younger", it dies (aborts) to break the cycle.
-        if (requester.priority < 5) { // Simulation logic: lower priority nodes abort
-            System.out.println("[Recovery] Aborting Transaction " + requester.id + " to release Core1 locks.");
+
+        // Resolution Strategy: Wait–Die (Priority-based)
+        if (requester.priority < 5) {
+            System.out.println("[Recovery] Aborting Transaction " + requester.id +
+                    " to release locks.");
             waitForGraph.remove(requester.id);
-            // Trigger protocol recovery from (l)
         } else {
-            System.out.println("[Recovery] Requester high priority. Forcing timeout on holder " + holderId);
+            System.out.println("[Recovery] High-priority transaction preserved. Forcing timeout on "
+                    + holderId);
         }
     }
 }
 
-public class DistributedSystemSim {
+/* =========================================================
+ * PROGRAMIZ ENTRY POINT (MUST BE Main)
+ * ========================================================= */
+public class Main {
     public static void main(String[] args) {
+
         DeadlockDetector detector = new DeadlockDetector();
 
-        // Simulate Transactions on identified bottleneck nodes (k)
+        // Transactions on bottleneck nodes (Task k)
         Transaction txCore1 = new Transaction("TX_CORE1", 8); // High priority
-        Transaction txEdge2 = new Transaction("TX_EDGE2", 2); // Low priority (0.5% loss)
+        Transaction txEdge2 = new Transaction("TX_EDGE2", 2); // Low priority
 
-        // Simulate Cyclic Dependency: 
-        // TX_CORE1 waits for TX_EDGE2 (consensus)
-        // TX_EDGE2 waits for TX_CORE1 (lock on data)
         System.out.println("--- Simulating Cyclic Dependency between Core and Edge ---");
-        
+
+        // Cycle:
+        // TX_CORE1 → TX_EDGE2
+        // TX_EDGE2 → TX_CORE1
         detector.requestResource(txCore1, "TX_EDGE2");
-        detector.requestResource(txEdge2, "TX_CORE1"); // This triggers detection
+        detector.requestResource(txEdge2, "TX_CORE1"); // Triggers detection
     }
 }
